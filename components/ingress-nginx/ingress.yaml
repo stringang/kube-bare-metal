@@ -1,0 +1,50 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  annotations:
+    # enforcement https
+    nginx.ingress.kubernetes.io/ssl-redirect: 'false'
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
+    nginx.ingress.kubernetes.io/proxy-read-time-out: '600'
+    nginx.ingress.kubernetes.io/proxy-send-time-out: '600'
+    nginx.ingress.kubernetes.io/rewrite-target: /xxx
+    # cors
+    nginx.ingress.kubernetes.io/cors-allow-headers: 'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,Kylinextendattrs'
+    nginx.ingress.kubernetes.io/cors-allow-methods: '*'
+    nginx.ingress.kubernetes.io/cors-allow-origin: '*'
+    nginx.ingress.kubernetes.io/enable-cors: 'true'
+    # oauth auth
+    nginx.ingress.kubernetes.io/auth-signin: 'http://oauth2-proxy.xxx.com/oauth2/start?rd=$scheme://$host$request_uri'
+    nginx.ingress.kubernetes.io/auth-url: 'http://oauth2-proxy.cluster-mw.svc.cluster.local/oauth2/auth'
+    # nginx.ingress.kubernetes.io/auth-proxy-set-headers: cluster-mw/oauth2-proxy-auth-headers
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location =  /apple-app-site-association {
+        proxy_pass https://cdn.xxx.xyz/cxxx;
+      }
+    # add custom header
+    # https://github.com/didi/KnowStreaming/blob/v2.4.2/docs/user_guide/call_api_bypass_login.md
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_input_headers "Trick-Login-Switch: on";
+      more_set_input_headers "Trick-Login-User: admin";
+  name: example
+  namespace: example
+  labels:
+    app: etcd-manager
+    app.kubernetes.io/component: etcd-manager
+    app.kubernetes.io/instance: etcd-manager
+    app.kubernetes.io/name: etcd-manager
+    app.kubernetes.io/runtime: kubernetes
+spec:
+  ingressClassName: waf
+  rules:
+    - host: etcd-manager.xxx.com
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: etcd-manager
+                port:
+                  name: 8080-tcp
+
