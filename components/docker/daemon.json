@@ -1,0 +1,14 @@
+{
+  "data-root": "/data/docker",
+  "default-runtime": "nvidia",
+  "exec-opts": [
+    "native.cgroupdriver=systemd"
+  ],
+  "max-concurrent-downloads": 100,
+  "runtimes": {
+    "nvidia": {
+      "args": [],
+      "path": "nvidia-container-runtime"
+    }
+  }
+}
