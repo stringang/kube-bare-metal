@@ -1,0 +1,46 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-operator
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - '*'
+    resources:
+      - '*'
+  - verbs:
+      - get
+      - list
+      - watch
+    nonResourceURLs:
+      - '*'
+  - verbs:
+      - impersonate
+    apiGroups:
+      - ''
+    resources:
+      - serviceaccounts
+      - users
+      - groups
+  - verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    apiGroups:
+      - ''
+    resources:
+      - pods
+      - pods/attach
+      - pods/exec
+      - pods/portforward
+      - pods/proxy
+      - pods/eviction
+      - namespaces
