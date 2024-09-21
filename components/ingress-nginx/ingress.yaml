@@ -2,21 +2,16 @@ kind: Ingress
 apiVersion: networking.k8s.io/v1
 metadata:
   annotations:
-    # enforcement https
-    nginx.ingress.kubernetes.io/ssl-redirect: 'false'
-    nginx.ingress.kubernetes.io/proxy-body-size: 200m
-    nginx.ingress.kubernetes.io/proxy-read-time-out: '600'
-    nginx.ingress.kubernetes.io/proxy-send-time-out: '600'
-    nginx.ingress.kubernetes.io/rewrite-target: /xxx
+    # pass token to upstream
+    nginx.ingress.kubernetes.io/auth-response-headers: 'authorization,x-auth-request-access-token'
+    nginx.ingress.kubernetes.io/auth-signin: 'http://oauth2-proxy.xxx.com/oauth2/start?rd=$scheme://$host$request_uri'
+    nginx.ingress.kubernetes.io/auth-url: 'http://oauth2-proxy.cluster-mw.svc.cluster.local/oauth2/auth'
+    # nginx.ingress.kubernetes.io/auth-proxy-set-headers: cluster-mw/oauth2-proxy-auth-headers
     # cors
     nginx.ingress.kubernetes.io/cors-allow-headers: 'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,Kylinextendattrs'
     nginx.ingress.kubernetes.io/cors-allow-methods: '*'
     nginx.ingress.kubernetes.io/cors-allow-origin: '*'
     nginx.ingress.kubernetes.io/enable-cors: 'true'
-    # oauth auth
-    nginx.ingress.kubernetes.io/auth-signin: 'http://oauth2-proxy.xxx.com/oauth2/start?rd=$scheme://$host$request_uri'
-    nginx.ingress.kubernetes.io/auth-url: 'http://oauth2-proxy.cluster-mw.svc.cluster.local/oauth2/auth'
-    # nginx.ingress.kubernetes.io/auth-proxy-set-headers: cluster-mw/oauth2-proxy-auth-headers
     nginx.ingress.kubernetes.io/server-snippet: |
       location =  /apple-app-site-association {
         proxy_pass https://cdn.xxx.xyz/cxxx;
@@ -24,8 +19,22 @@ metadata:
     # add custom header
     # https://github.com/didi/KnowStreaming/blob/v2.4.2/docs/user_guide/call_api_bypass_login.md
     nginx.ingress.kubernetes.io/configuration-snippet: |
+      # add request header
       more_set_input_headers "Trick-Login-Switch: on";
       more_set_input_headers "Trick-Login-User: admin";
+      auth_request_set $token $upstream_http_x_auth_request_access_token;
+      # add response header
+      add_header Authorization $token;
+    nginx.ingress.kubernetes.io/enable-access-log: "false"
+    nginx.ingress.kubernetes.io/enable-rewrite-log: 'true'
+    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: "1024m"
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
+    nginx.ingress.kubernetes.io/proxy-read-time-out: '600' # second
+    nginx.ingress.kubernetes.io/proxy-send-time-out: '600' # second
+    nginx.ingress.kubernetes.io/rewrite-target: /xxx
+    # enforcement https
+    nginx.ingress.kubernetes.io/ssl-redirect: 'false'
+    nginx.ingress.kubernetes.io/use-regex: 'true'
   name: example
   namespace: example
   labels:
