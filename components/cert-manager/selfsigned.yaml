@@ -1,0 +1,24 @@
+---
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: kube-audit-rest-cert
+  namespace: default
+spec:
+  secretName: kube-audit-rest
+  dnsNames:
+    - kube-audit-rest.default.svc.cluster.local
+    - kube-audit-rest.default.svc
+  issuerRef:
+    name: kube-audit-rest-issuer
+
+---
+
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: kube-audit-rest-issuer
+  namespace: default
+spec:
+  selfSigned: {}
