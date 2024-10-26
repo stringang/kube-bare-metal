@@ -1,0 +1,212 @@
+---
+# ingress access log
+apiVersion: loggie.io/v1beta1
+kind: LogConfig
+metadata:
+  name: ingress-nginx
+  namespace: ingress
+spec:
+  pipeline:
+    interceptors: |
+      - type: transformer
+        actions:
+          - if: hasPrefix(body, {)
+            then:
+            - action: jsonDecode(body)
+            - action: add(__topic__, http)
+            else:
+            - action: dropEvent()
+          - if: oneOf(http_user_agent, clb-healthcheck)
+            then:
+            - action: dropEvent()
+    sink: |
+      type: elasticsearch
+      index: "ingress-nginx-${__topic__}-prod-${+YYYY.MM.DD}"
+      hosts: ["k8s-es.xxxx.cn:80"]
+      username: elastic
+      password: 2J4nM6yCk0YJfd4oWRBk
+    sources: |
+      - type: file
+        name: stdout
+        paths:
+          - stdout
+  selector:
+    type: pod
+    labelSelector:
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/part-of: ingress-nginx
+
+---
+# k8s event
+apiVersion: loggie.io/v1beta1
+kind: ClusterLogConfig
+metadata:
+  name: kube-event
+spec:
+  pipeline:
+    sink: |
+      type: elasticsearch
+      index: "kube-event-${+YYYY.MM.DD}"
+      hosts: ["k8s-es.xxxx.cn:80"]
+      username: elastic
+      password: 2J4nM6yCk0YJfd4oWRBk
+    sources: |
+      - type: kubeEvent
+        name: event
+    interceptors: |
+      - type: transformer
+        actions:
+          - action: jsonDecode(body)
+          - action: del(metadata.managedFields)
+          - action: add(cluster_name, prod)
+  selector:
+    type: node
+    nodeSelector:
+      kubernetes.io/hostname: '10.0.0.1'
+
+---
+# kube-audit-rest audit log
+apiVersion: loggie.io/v1beta1
+kind: LogConfig
+metadata:
+  name: kube-audit-rest
+  namespace: sophon-system
+spec:
+  pipeline:
+    interceptors: |
+      - type: transformer
+        actions:
+          - if: contain(body, zapio)
+            then:
+            - action: print()
+            - action: jsonDecode(body)
+            - action: del(caller, level, ts)
+            - action: jsonDecode(msg)
+            - action: add(cluster_name, prod)
+            else:
+            - action: dropEvent()
+    sink: |
+      type: elasticsearch
+      codec:
+        printEvents: true
+      index: "apiserver-audit-${+YYYY.MM.DD}"
+      hosts: ["k8s-es.xxxx.cn:80"]
+      username: elastic
+      password: 2J4nM6yCk0YJfd4oWRBk
+    sources: |
+      - type: file
+        name: stdout
+        paths:
+          - stdout
+  selector:
+    type: pod
+    labelSelector:
+      app: kube-audit-rest
+
+---
+# stdout
+apiVersion: loggie.io/v1beta1
+kind: LogConfig
+metadata:
+  name: sophon
+  namespace: sophon
+spec:
+  pipeline:
+    interceptors: |
+      - type: schema
+        addMeta:
+          timestamp:
+            key: "time"
+      - type: transformer
+        actions:
+          - if: equal(fields.containername, istio-proxy)
+            then:
+            - action: dropEvent()
+            else:
+            - action: jsonDecode(body)
+    sink: |
+      type: elasticsearch
+      codec:
+        printEvents: true
+      index: "sophon-${+YYYY.MM.DD}"
+      hosts: ["k8s-es.xxxx.cn:80"]
+      username: elastic
+      password: 2J4nM6yCk0YJfd4oWRBk
+    sources: |
+      - type: file
+        name: stdout
+        paths:
+          - stdout
+  selector:
+    type: pod
+    labelSelector:
+      app: mixer
+
+---
+# istio ingress gateway access log
+apiVersion: loggie.io/v1beta1
+kind: LogConfig
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-system
+spec:
+  pipeline:
+    interceptors: |
+      - type: transformer
+        actions:
+          - if: hasPrefix(body, {)
+            then:
+            - action: jsonDecode(body)
+            else:
+            - action: dropEvent()
+    sink: |
+      type: elasticsearch
+      index: "istio-gateway-${+YYYY.MM.DD}"
+      hosts: ["k8s-es.xxxx.cn:80"]
+      username: elastic
+      password: 2J4nM6yCk0YJfd4oWRBk
+    sources: |
+      - type: file
+        name: stdout
+        paths:
+          - stdout
+  selector:
+    type: pod
+    labelSelector:
+      app: istio-ingressgateway
+      istio: ingressgateway
+
+---
+# kube apiserver
+apiVersion: loggie.io/v1beta1
+kind: LogConfig
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  pipeline:
+    interceptors: |
+      - type: schema
+        addMeta:
+          timestamp:
+            key: "time"
+      - type: transformer
+        actions:
+          - action: add(cluster_name, prod)
+    sink: |
+      type: elasticsearch
+      index: "kube-apiserver-${+YYYY.MM.DD}"
+      hosts: ["k8s-es.xxxx.cn:80"]
+      username: elastic
+      password: 2J4nM6yCk0YJfd4oWRBk
+    sources: |
+      - type: file
+        name: stdout
+        paths:
+          - stdout
+  selector:
+    type: pod
+    labelSelector:
+      component: kube-apiserver
+      tier: control-plane

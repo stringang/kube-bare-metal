@@ -1,0 +1,541 @@
+---
+# Source: loggie/templates/loggie-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loggie
+  namespace: monitoring
+---
+# Source: loggie/templates/loggie-configmap.yaml
+apiVersion: v1
+data:
+  loggie.yml: |-
+    loggie:
+      discovery:
+        enabled: true
+        kubernetes:
+          containerRuntime: containerd
+          dynamicContainerLog: false
+          parseStdout: true
+          rootFsCollectionEnabled: false
+          typePodFields:
+            containername: ${_k8s.pod.container.name}
+            logconfig: ${_k8s.logconfig}
+            namespace: ${_k8s.pod.namespace}
+            nodename: ${_k8s.node.name}
+            podname: ${_k8s.pod.name}
+            workload: ${_k8s.workload.name}	
+      http:
+        enabled: true
+        port: 9196
+      monitor:
+        listeners:
+          filesource:
+            period: 10s
+          filewatcher:
+            period: 5m
+          pipeline:
+            period: 10s
+          queue:
+            period: 10s
+          reload:
+            period: 10s
+          sink:
+            period: 10s
+        logger:
+          enabled: true
+          period: 30s
+      reload:
+        enabled: true
+        period: 10s
+kind: ConfigMap
+metadata:
+  name: loggie-config
+  namespace: monitoring
+---
+# Source: loggie/templates/loggie-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: loggie-role
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - nodes
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - get
+      - watch
+      - list
+      - update
+      - create
+      - patch
+  - apiGroups:
+      - extensions
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - loggie.io
+    resources:
+      - logconfigs
+      - logconfigs/status
+      - clusterlogconfigs
+      - clusterlogconfigs/status
+      - sinks
+      - interceptors
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - get
+      - list
+      - update
+  - apiGroups:
+      - metrics.k8s.io
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+---
+# Source: loggie/templates/loggie-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: loggie-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: loggie-role
+subjects:
+  - kind: ServiceAccount
+    name: loggie
+    namespace: monitoring
+---
+# Source: loggie/templates/loggie-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: loggie
+    instance: loggie
+  name: loggie
+  namespace: monitoring
+spec:
+  ports:
+    - name: monitor
+      port: 9196
+      targetPort: 9196
+  selector:
+    app: loggie
+    instance: loggie
+  type: ClusterIP
+---
+# Source: loggie/templates/loggie-agent-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: loggie
+    instance: loggie
+  name: loggie
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: loggie
+      instance: loggie
+  template:
+    metadata:
+      labels:
+        app: loggie
+        instance: loggie
+      annotations:
+        sidecar.istio.io/inject: 'false'
+    spec:
+      containers:
+        - args:
+            - -meta.nodeName=$(HOST_NAME)
+            - -config.system=/opt/loggie/loggie.yml
+            - -config.pipeline=/opt/loggie/pipeline/*.yml
+            - -log.level=debug
+          env:
+            - name: HOST_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: TZ
+              value: Asia/Shanghai
+          image: loggieio/loggie:v1.5.0
+          name: loggie
+          resources:
+            limits:
+              cpu: 500m
+              memory: 500Mi
+            requests:
+              cpu: 200m
+              memory: 300Mi
+          volumeMounts:
+
+            - mountPath: /var/log/pods
+              name: podlogs
+            - mountPath: /var/lib/docker/containers
+              name: dockercontainers
+            - mountPath: /var/lib/kubelet/pods
+              name: kubelet
+            - mountPath: /opt/loggie/loggie.yml
+              name: loggie-config
+              subPath: loggie.yml
+            - mountPath: /opt/loggie/pipeline
+              name: pipeline
+            - mountPath: /data/
+              name: registry
+
+      serviceAccountName: loggie
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - hostPath:
+            path: /var/log/pods
+            type: DirectoryOrCreate
+          name: podlogs
+        - hostPath:
+            path: /var/lib/docker/containers
+            type: DirectoryOrCreate
+          name: dockercontainers
+        - hostPath:
+            path: /var/lib/kubelet/pods
+            type: DirectoryOrCreate
+          name: kubelet
+        - configMap:
+            defaultMode: 384
+            name: loggie-config
+          name: loggie-config
+        - hostPath:
+            path: /data/loggie
+            type: DirectoryOrCreate
+          name: registry
+        - emptyDir: {}
+          name: pipeline
+
+  updateStrategy:
+    type: RollingUpdate
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterlogconfigs.loggie.io
+spec:
+  conversion:
+    strategy: None
+  group: loggie.io
+  names:
+    kind: ClusterLogConfig
+    listKind: ClusterLogConfigList
+    plural: clusterlogconfigs
+    shortNames:
+      - clgc
+    singular: clusterlogconfig
+  scope: Cluster
+  versions:
+    - name: v1beta1
+      additionalPrinterColumns:
+        - description: select pods
+          jsonPath: .spec.selector.labelSelector
+          name: Pod Selector
+          type: string
+        - description: select nodes
+          jsonPath: .spec.selector.nodeSelector
+          name: Node Selector
+          type: string
+        - description: select cluster
+          jsonPath: .spec.selector.cluster
+          name: Cluster
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                pipeline:
+                  properties:
+                    interceptorRef:
+                      type: string
+                    interceptors:
+                      type: string
+                    name:
+                      type: string
+                    sink:
+                      type: string
+                    sinkRef:
+                      type: string
+                    sources:
+                      type: string
+                  type: object
+                selector:
+                  properties:
+                    cluster:
+                      type: string
+                    labelSelector:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    type:
+                      type: string
+                  type: object
+              type: object
+            status:
+              properties:
+                message:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                  type: object
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: logconfigs.loggie.io
+spec:
+  conversion:
+    strategy: None
+  group: loggie.io
+  names:
+    kind: LogConfig
+    listKind: LogConfigList
+    plural: logconfigs
+    shortNames:
+      - lgc
+    singular: logconfig
+  scope: Namespaced
+  versions:
+    - name: v1beta1
+      additionalPrinterColumns:
+        - description: select pods
+          jsonPath: .spec.selector.labelSelector
+          name: Pod Selector
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+                of an object. Servers should convert recognized schemas to the latest
+                internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+                object represents. Servers may infer this from the endpoint the client
+                submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                pipeline:
+                  properties:
+                    interceptorRef:
+                      type: string
+                    interceptors:
+                      type: string
+                    name:
+                      type: string
+                    sink:
+                      type: string
+                    sinkRef:
+                      type: string
+                    sources:
+                      type: string
+                  type: object
+                selector:
+                  properties:
+                    cluster:
+                      type: string
+                    labelSelector:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    nodeSelector:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    type:
+                      type: string
+                  type: object
+              type: object
+            status:
+              properties:
+                message:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                  type: object
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: interceptors.loggie.io
+spec:
+  conversion:
+    strategy: None
+  group: loggie.io
+  names:
+    kind: Interceptor
+    listKind: InterceptorList
+    plural: interceptors
+    shortNames:
+      - icp
+    singular: interceptor
+  scope: Cluster
+  versions:
+    - name: v1beta1
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                interceptors:
+                  type: string
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sinks.loggie.io
+spec:
+  conversion:
+    strategy: None
+  group: loggie.io
+  names:
+    kind: Sink
+    listKind: SinkList
+    plural: sinks
+    singular: sink
+  scope: Cluster
+  versions:
+    - name: v1beta1
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                sink:
+                  type: string
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+

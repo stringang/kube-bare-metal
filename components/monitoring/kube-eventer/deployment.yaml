@@ -1,10 +1,11 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     name: kube-eventer
   name: kube-eventer
-  namespace: kube-system
+  namespace: monitoring
 spec:
   replicas: 1
   selector:
@@ -78,10 +79,10 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: kube-eventer
-    namespace: kube-system
+    namespace: monitoring
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: kube-eventer
-  namespace: kube-system
+  namespace: monitoring

@@ -1,0 +1,110 @@
+{
+  "index_patterns" : [
+    "kube-eventer-*"
+  ],
+  "settings" : {
+    "index" : {
+      "lifecycle" : {
+        "name" : "kube-event"
+      },
+      "mapping": {
+        "ignore_malformed": true
+      }
+    }
+  },
+  "mappings" : {
+    "_routing" : {
+      "required" : false
+    },
+    "numeric_detection" : false,
+    "dynamic_date_formats" : [
+      "strict_date_optional_time",
+      "yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"
+    ],
+    "_meta" : { },
+    "_source" : {
+      "excludes" : [ ],
+      "includes" : [ ],
+      "enabled" : true
+    },
+    "dynamic" : true,
+    "dynamic_templates" : [
+      {
+        "exclude_managed_fields" : {
+          "path_match" : "managedFields.*",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      {
+        "exclude_managed_fields_recursive" : {
+          "path_match" : "*.managedFields.*",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      {
+        "annotations_as_object" : {
+          "path_match" : "*.metadata.annotations",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      {
+        "owner_references_as_object" : {
+          "path_match" : "*.metadata.ownerReferences",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      {
+        "labels_as_object" : {
+          "path_match" : "*.metadata.labels",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      {
+        "spec_as_object" : {
+          "path_match" : "*.spec",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      {
+        "status_as_object" : {
+          "path_match" : "*.status",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      },
+      {
+        "extra_as_object" : {
+          "path_match" : "userInfo.extra",
+          "mapping" : {
+            "type" : "object",
+            "enabled" : false
+          }
+        }
+      }
+    ],
+    "date_detection" : true,
+    "properties" : { }
+  },
+  "aliases" : { }
+}
+
