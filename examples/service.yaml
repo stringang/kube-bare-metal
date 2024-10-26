@@ -1,0 +1,73 @@
+---
+# https://kubernetes.io/docs/concepts/services-networking/service/#services-without-selectors
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-and-endpoint
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: service-and-endpoint
+subsets:
+  - addresses:
+      - ip: 192.0.2.42
+    ports:
+      - port: 9376
+
+
+---
+# headless service
+kind: Service
+apiVersion: v1
+metadata:
+  name: webapp-headless
+  namespace: example
+spec:
+  clusterIP: None  # <-----
+  ipFamilies:
+    - IPv4
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8097
+      targetPort: 8097
+  internalTrafficPolicy: Cluster
+  clusterIPs:
+    - None
+  type: ClusterIP
+  ipFamilyPolicy: SingleStack
+  sessionAffinity: None
+  selector:
+    app: webapp
+
+---
+# clusterIP
+kind: Service
+apiVersion: v1
+metadata:
+  name: example
+  namespace: example
+spec:
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  clusterIP: 10.0.0.1
+  loadBalancerIP: 10.68.8.195  # <-------
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: example
+      protocol: TCP
+      port: 1888
+      targetPort: 29888
+  internalTrafficPolicy: Cluster
+  type: ClusterIP
+  ipFamilyPolicy: SingleStack
+  sessionAffinity: ClientIP
+  selector:
+    app: example

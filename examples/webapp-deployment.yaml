@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: webapp-deployment
+  namespace: default
   labels:
     app: webapp
 spec:
@@ -13,7 +14,21 @@ spec:
     metadata:
       labels:
         app: nginx
+      annotations:
+        sidecar.istio.io/logLevel: debug
+        sidecar.istio.io/inject: 'false'
     spec:
+      initContainers:
+        - name: jmx-agent-init-container
+          image: stringang/jmx-exporter
+          command:
+            - cp
+            - '-r'
+            - /opt/javaagent/.
+            - /agent
+          volumeMounts:
+            - name: jmx-agent-volume
+              mountPath: /agent
       # 制定节点调度
       nodeSelector:
         node-role.kubernetes.io/feature: 'true'
@@ -22,13 +37,67 @@ spec:
           image: nginx:1.14.2
           ports:
             - containerPort: 80
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - '-c'
+                  - chmod +x /opt/javaagent/prestop.sh && /opt/javaagent/prestop.sh > /opt/javaagent/prestop.log
+          env:
+            - name: JVM_OPTS_PREFIX
+              value: |-
+                -javaagent:/opt/javaagent/jmx_prometheus_javaagent.jar=5555:/opt/javaagent/config.yaml -server -Xmx12336M -Xms12336M -Xss1024k -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC
+                -XX:+ExplicitGCInvokesConcurrent  -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCApplicationConcurrentTime -XX:+PrintHeapAtGC -XX:+HeapDumpOnOutOfMemoryError -XX:-OmitStackTraceInFastThrow -Dproject.name=example
+            - name: JAVA_TOOL_OPTIONS
+              value: '-Ddubbo.application.qos-enable=true -Ddubbo.application.qos-port=10087 -Ddubbo.application.qos-accept-foreign-ip=false'
+          volumeMounts:
+            - name: timezone
+              mountPath: /etc/localtime
+            - name: jmx-agent-volume
+              mountPath: /opt/javaagent
+            - name: sandbox
+              mountPath: /opt/sandbox/cfg/sandbox.properties
+              subPath: sandbox.properties
+            # apollo config
+            - name: server-properties
+              mountPath: /opt/settings/server.properties
+              subPath: server.properties
       # 添加 host
       hostAliases:
         - hostnames:
             - xxxx.com
-          ip: 127.0.0.1
+          ip: 127.0.0.1 # ingress svc ip
       # 调度
       tolerations:
         - key: node-role.kubernetes.io/master
           operator: Exists
           effect: NoSchedule
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - cn-shenzhen-d
+      terminationGracePeriodSeconds: 120
+      volumes:
+        - name: jmx-agent-volume
+          emptyDir: {}
+        - name: sandbox
+          configMap:
+            defaultMode: 420
+            name: sandbox
+        - name: timezone
+          hostPath:
+            path: /etc/localtime
+            type: ''
+        - name: server-properties
+          configMap:
+            defaultMode: 420
+            name: apollo-config
