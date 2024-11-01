@@ -1,5 +1,45 @@
 ---
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: envoy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-dynamic
+  namespace: envoy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: envoy
+  template:
+    metadata:
+      labels:
+        app: envoy
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: envoy
+          image: harbor-k8s.xsyxsc.cn/envoyproxy/envoy:debug-v1.31-latest
+          ports:
+            - name: envoy
+              containerPort: 9000
+            - name: envoy-admin
+              containerPort: 9901
+          volumeMounts:
+            - name: envoy-config
+              mountPath: /etc/envoy
+
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: envoy-dynamic
+
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: envoy-dynamic
