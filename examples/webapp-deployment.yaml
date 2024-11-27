@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,6 +52,9 @@ spec:
                 -XX:+ExplicitGCInvokesConcurrent  -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCApplicationConcurrentTime -XX:+PrintHeapAtGC -XX:+HeapDumpOnOutOfMemoryError -XX:-OmitStackTraceInFastThrow -Dproject.name=example
             - name: JAVA_TOOL_OPTIONS
               value: '-Ddubbo.application.qos-enable=true -Ddubbo.application.qos-port=10087 -Ddubbo.application.qos-accept-foreign-ip=false'
+          securityContext:
+            runAsGroup: 1000
+            runAsUser: 1000
           volumeMounts:
             - name: timezone
               mountPath: /etc/localtime
@@ -85,6 +89,17 @@ spec:
                     operator: In
                     values:
                       - cn-shenzhen-d
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - webapp
+                topologyKey: kubernetes.io/hostname
+              weight: 100
       terminationGracePeriodSeconds: 120
       volumes:
         - name: jmx-agent-volume
@@ -101,3 +116,38 @@ spec:
           configMap:
             defaultMode: 420
             name: apollo-config
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netshoot
+  namespace: default
+  labels:
+    app: netshoot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netshoot
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: netshoot
+    spec:
+      containers:
+        - name: netshoot
+          image: docker.io/nicolaka/netshoot:latest
+          command: ["/bin/sleep"]
+          args: ["100d"]
+          ports:
+            - containerPort: 9999
+              name: tcp
+              protocol: TCP
+            - containerPort: 80
+              name: http-80
+              protocol: TCP
+          securityContext:
+            privileged: true

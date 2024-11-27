@@ -58,14 +58,14 @@ spec:
     clientIP:
       timeoutSeconds: 10800
   clusterIP: 10.0.0.1
-  loadBalancerIP: 10.68.8.195  # <-------
-  externalTrafficPolicy: Cluster
+  loadBalancerIP: 10.68.8.195  # <------- 指定 LB 地址
+  externalTrafficPolicy: Cluster #
   ports:
     - name: example
       protocol: TCP
       port: 1888
       targetPort: 29888
-  internalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster #
   type: ClusterIP
   ipFamilyPolicy: SingleStack
   sessionAffinity: ClientIP

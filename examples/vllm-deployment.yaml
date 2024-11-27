@@ -1,0 +1,104 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qwen2.5-7b-instruct
+  namespace: llm-train
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+#  storageClassName: default
+  volumeMode: Filesystem
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qwen2.5-7b-instruct
+  namespace: llm-train
+  labels:
+    app: qwen2.5-7b-instruct
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qwen2.5-7b-instruct
+  template:
+    metadata:
+      labels:
+        app: qwen2.5-7b-instruct
+    spec:
+      containers:
+        - name: qwen-7b-instruct
+          # https://modelscope.cn/docs/model-service/deployment/local-deploy
+          image: modelscope-registry.cn-hangzhou.cr.aliyuncs.com/modelscope-repo/modelscope:ubuntu22.04-cuda12.1.0-py310-torch2.3.1-tf2.16.1-1.20.0
+          command:
+            - "python"
+            - "-m"
+            - "vllm.entrypoints.openai.api_server"
+            - "--model"
+            - "Qwen/Qwen2.5-7B-Instruct"
+            - "--trust-remote-code"
+            - "--dtype"
+            - "half"
+          env:
+            - name: MODELSCOPE_CACHE
+              value: /root/.cache/huggingface
+            - name: VLLM_USE_MODELSCOPE
+              value: 'True'
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: "10"
+              memory: 20G
+              nvidia.com/gpu: "1"
+            requests:
+              cpu: "2"
+              memory: 6G
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - mountPath: /root/.cache/huggingface
+              name: cache-volume
+            - name: shm
+              mountPath: /dev/shm
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 5
+      volumes:
+        - name: cache-volume
+          persistentVolumeClaim:
+            claimName: qwen2.5-7b-instruct
+        # vLLM needs to access the host's shared memory for tensor parallel inference.
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qwen-7b-instruct
+  namespace: llm-train
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app: qwen2.5-7b-instruct
+  sessionAffinity: None
+  type: ClusterIP
