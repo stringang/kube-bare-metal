@@ -31,7 +31,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: 200m
     nginx.ingress.kubernetes.io/proxy-read-time-out: '600' # second
     nginx.ingress.kubernetes.io/proxy-send-time-out: '600' # second
-    nginx.ingress.kubernetes.io/rewrite-target: /xxx
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
     # enforcement https
     nginx.ingress.kubernetes.io/ssl-redirect: 'false'
     nginx.ingress.kubernetes.io/use-regex: 'true'
@@ -49,7 +49,7 @@ spec:
     - host: etcd-manager.xxx.com
       http:
         paths:
-          - path: /
+          - path: /api(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
