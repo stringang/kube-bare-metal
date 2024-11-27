@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: envoy
-          image: harbor-k8s.xsyxsc.cn/envoyproxy/envoy:debug-v1.31-latest
+          image: envoyproxy/envoy:debug-v1.31-latest
           ports:
             - name: envoy
               containerPort: 9000

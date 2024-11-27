@@ -1,0 +1,47 @@
+---
+apiVersion: crd.projectcalico.org/v1
+kind: FelixConfiguration
+metadata:
+  name: default
+spec:
+  bpfDataIfacePattern: ^(en.*|eth.*|tunl0$|bond.*)
+  bpfEnabled: true
+  bpfExternalServiceMode: DSR
+  bpfKubeProxyIptablesCleanupEnabled: false
+  bpfLogLevel: ''
+  logSeverityScreen: Info
+  reportingInterval: 0s
+
+---
+apiVersion: crd.projectcalico.org/v1
+kind: BGPPeer
+metadata:
+  name: global-peer
+spec:
+  asNumber: 65177
+  peerIP: 10.255.0.1
+
+---
+apiVersion: crd.projectcalico.org/v1
+kind: BGPConfiguration
+metadata:
+  name: default
+spec:
+  asNumber: 65285
+  listenPort: 179
+  logSeverityScreen: Info
+  nodeToNodeMeshEnabled: true
+  serviceClusterIPs: # Advertise service IP ranges
+    - cidr: 10.255.16.0/20
+
+---
+apiVersion: crd.projectcalico.org/v1
+kind: BlockAffinity
+metadata:
+  name: kube-master-192-168-221-64-25
+  namespace: ""
+spec:
+  state: "confirmed"
+  node: kube-master
+  cidr: 192.168.221.64/25
+  deleted: ""

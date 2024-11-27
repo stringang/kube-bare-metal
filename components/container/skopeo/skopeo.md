@@ -13,7 +13,7 @@ skopeo inspect --raw docker://docker.io/busybox:stable-glibc | jq
 skopeo --override-os linux --override-arch amd64 docker://docker.io/busybox:stable-glibc
 
 skopeo copy --insecure-policy docker://docker.io/busybox:stable-glibc@sha256:1f3c4ec00c804f65805bd22b358c8fbba6b0ab4e32171adba33058cf635923aa docker://harbor.xxxx.cn/library/busybox:stable-glibc
-
+skopeo copy docker-daemon:sha256:698668 docker://xxxx --insecure-policy --override-os linux --override-arch amd64
 ```
 
 ## Reference

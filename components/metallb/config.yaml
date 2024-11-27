@@ -1,0 +1,19 @@
+---
+# 示例：https://raw.githubusercontent.com/metallb/metallb/v0.12.1/manifests/example-config.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    peers:
+    - peer-address: 10.0.0.1
+      peer-asn: 64501
+      my-asn: 64500
+    address-pools: # 定义分配 lb service ip 池
+    - name: default
+      protocol: bgp
+      addresses:
+      - 192.168.10.0/24 # lb service IP ranges

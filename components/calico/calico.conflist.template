@@ -1,0 +1,28 @@
+{
+  "name": "cni0",
+  "cniVersion":"0.3.1",
+  "plugins":[
+    {
+      "datastore_type": "kubernetes",
+      "nodename": "__KUBERNETES_NODE_NAME__",
+      "type": "calico",
+      "log_level": "info",
+      "ipam": {
+        "type": "calico-ipam",
+        "assign_ipv4": "true",
+        "ipv4_pools": ["10.255.128.0/18"]
+      },
+      "policy": {
+        "type": "k8s"
+      },      "kubernetes": {
+        "kubeconfig": "__KUBECONFIG_FILEPATH__"
+      }
+    },
+    {
+      "type":"portmap",
+      "capabilities":{
+        "portMappings":true
+      }
+    }
+  ]
+}
