@@ -35,6 +35,7 @@ spec:
     - cidr: 10.255.16.0/20
 
 ---
+# 节点 ip ranges 信息
 apiVersion: crd.projectcalico.org/v1
 kind: BlockAffinity
 metadata:
