@@ -5,7 +5,7 @@ metadata:
   name: default
 spec:
   bpfDataIfacePattern: ^(en.*|eth.*|tunl0$|bond.*)
-  bpfEnabled: true
+  bpfEnabled: true # 开启 ebpf 模式
   bpfExternalServiceMode: DSR
   bpfKubeProxyIptablesCleanupEnabled: false
   bpfLogLevel: ''
@@ -22,6 +22,7 @@ spec:
   peerIP: 10.255.0.1
 
 ---
+# BGP 模式
 apiVersion: crd.projectcalico.org/v1
 kind: BGPConfiguration
 metadata:
@@ -31,7 +32,7 @@ spec:
   listenPort: 179
   logSeverityScreen: Info
   nodeToNodeMeshEnabled: true
-  serviceClusterIPs: # Advertise service IP ranges
+  serviceClusterIPs: # 通过 BGP 暴露 service ip ranges
     - cidr: 10.255.16.0/20
 
 ---
@@ -46,3 +47,19 @@ spec:
   node: kube-master
   cidr: 192.168.221.64/25
   deleted: ""
+
+---
+apiVersion: crd.projectcalico.org/v1
+kind: IPPool
+metadata:
+  name: default-pool
+spec:
+  allowedUses:
+    - Workload
+    - Tunnel
+  blockSize: 24  #
+  cidr: 10.255.128.0/18 # pod subnet
+  ipipMode: Never
+  natOutgoing: false
+  nodeSelector: all()
+  vxlanMode: Never
